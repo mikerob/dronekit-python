@@ -209,6 +209,39 @@ class Rangefinder(object):
     def __str__(self):
         return "Rangefinder: distance={}, voltage={}".format(self.distance, self.voltage)
 
+class Radio_RSSI(object):
+    """
+    Radio RSSI reported values.
+
+	The message definition is here: http://mavlink.org/messages/common#RADIO_STATUS
+
+    :param rssi		uint8_t		Local signal strength
+    :param remrssi	uint8_t		Remote signal strength
+    :param txbuf	uint8_t		Remaining free buffer space in percent.
+    :param noise	uint8_t		Background noise level
+    :param remnoise	uint8_t		Remote background noise level
+    :param rxerrors	uint16_t	Receive errors
+    :param fixed	uint16_t	Count of error corrected packets
+
+    """
+	
+    def __init__(self=None, rssi=None, remrssi=None, txbuf=None, noise=None, remnoise=None, rxerrors=None, fixed=None):
+	    """
+		Radio_RSSI object constructor
+		"""
+        self.rssi = rssi
+        self.remrssi = remrssi
+		self.txbuf = txbuf
+		self.noise = noise
+		self.remnoise = remnoise
+		self.rxerrors = rxerrors
+		self.fixed = fixed
+
+    def __str__(self):
+        return "RSSI:",self.rssi, self.remrssi, self.txbuf, self.noise, self.remnoise, self.rxerrors, self.fixed
+		
+		
+		
 class VehicleMode(object):
     """
     This object is used to get and set the current "flight mode".
@@ -465,6 +498,10 @@ class Vehicle(HasObservers):
     .. py:attribute:: rangefinder
 
         :py:class:`Rangefinder` distance and voltage values.
+		
+	.. py:attribute:: radio_status
+
+		:py:class: 'RadioStatus' rssi and noise values
 
     .. py:attribute:: channel_override
 
@@ -645,6 +682,29 @@ class Vehicle(HasObservers):
             self._rngfnd_voltage = m.voltage
             self._notify_attribute_listeners('rangefinder')
 
+		self.radio_status=RadioStatus()
+        """ Temporary
+		self._rssi = None
+		self._remrssi = None
+		self._txbuf = None
+		self._noise = None
+		self._remnoise = None
+		self._rxerrors = None
+		self._fixed = None
+		"""
+		
+		@self.message_listener('RADIO_STATUS')
+        def listener(self, name, m):
+            self.radio_status.rssi = m.rssi
+			self.radio_status.remrssi = m.remrssi
+			self.radio_status.txbuf = m.txbuf
+			self.radio_status.noise = m.noise
+			self.radio_status.remnoise = m.remnoise
+			self.radio_status.rxerrors = m.rxerrors
+			self.radio_status.fixed = m.fixed
+			# Notify all observers of new message.
+			self._notify_attribute_listeners('radio status')
+			
         self._mount_pitch = None
         self._mount_yaw = None
         self._mount_roll = None
