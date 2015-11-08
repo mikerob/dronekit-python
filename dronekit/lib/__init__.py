@@ -231,11 +231,11 @@ class Radio_RSSI(object):
 		"""
         self.rssi = rssi
         self.remrssi = remrssi
-		self.txbuf = txbuf
-		self.noise = noise
-		self.remnoise = remnoise
-		self.rxerrors = rxerrors
-		self.fixed = fixed
+        self.txbuf = txbuf
+        self.noise = noise
+        self.remnoise = remnoise
+        self.rxerrors = rxerrors
+        self.fixed = fixed
 
     def __str__(self):
         return "RSSI:",self.rssi, self.remrssi, self.txbuf, self.noise, self.remnoise, self.rxerrors, self.fixed
