@@ -60,6 +60,7 @@ A number of other useful classes and methods are listed below.
 
 import threading, time, math, copy
 import CloudClient
+import collections
 from pymavlink.dialects.v10 import ardupilotmega
 from pymavlink import mavutil, mavwp
 from dronekit.util import errprinter
@@ -70,11 +71,11 @@ class APIException(Exception):
     """
     Base class for DroneKit related exceptions.
 
-    :param String msg: Message string describing the exception
+    :param String message: Message string describing the exception
     """
 
-    def __init__(self, msg):
-        self.msg = msg
+    def __init__(self, message):
+        super(APIException, self).__init__(message)
 
 class Attitude(object):
     """
@@ -324,7 +325,8 @@ class SystemStatus(object):
 class HasObservers(object):
     def __init__(self):
         # A mapping from attr_name to a list of observers
-        self.__observers = {}
+        self._attribute_listeners = {}
+        self._attribute_cache = {}
 
     """
     Provides callback based notification on attribute changes.
@@ -335,9 +337,13 @@ class HasObservers(object):
         """
         Add an attribute listener callback.
 
-        The callback function (``observer``) is invoked every time the associated attribute is updated 
-        from the vehicle (the attribute value may not have *changed*). The callback can be removed 
-        using :py:func:`remove_attribute_listener`.
+        The callback function (``observer``) is invoked differently depending on the *type of attribute*. 
+        Attributes that represent sensor values or which are used to monitor connection status are updated 
+        whenever a message is received from the vehicle. Attributes which reflect vehicle "state" are 
+        only updated when their values change (for example :py:func:`Vehicle.system_status <dronekit.lib.Vehicle.system_status>`,
+        :py:attr:`Vehicle.armed <dronekit.lib.Vehicle.armed>`, and :py:attr:`Vehicle.mode <dronekit.lib.Vehicle.mode>`).
+
+        The callback can be removed using :py:func:`remove_attribute_listener`.
         
         .. note::
         
@@ -364,14 +370,16 @@ class HasObservers(object):
             #Add observer for the vehicle's current location
             vehicle.add_attribute_listener('global_frame', location_callback)     
         
+        See :ref:`vehicle_state_observe_attributes` for more information.
+        
         :param String attr_name: The name of the attribute to watch (or '*' to watch all attributes).
         :param observer: The callback to invoke when a change in the attribute is detected.
 
         """
-        l = self.__observers.get(attr_name)
+        l = self._attribute_listeners.get(attr_name)
         if l is None:
             l = []
-            self.__observers[attr_name] = l
+            self._attribute_listeners[attr_name] = l
         if not observer in l:
             l.append(observer)
 
@@ -385,38 +393,62 @@ class HasObservers(object):
         .. code:: python
 
             vehicle.remove_attribute_listener('global_frame', location_callback)
+            
+        See :ref:`vehicle_state_observe_attributes` for more information.
 
         :param String attr_name: The attribute name that is to have an observer removed (or '*' to remove an 'all attribute' observer).
         :param observer: The callback function to remove.
 
         """
-        l = self.__observers.get(attr_name)
+        l = self._attribute_listeners.get(attr_name)
         if l is not None:
             l.remove(observer)
             if len(l) == 0:
-                del self.__observers[attr_name]
+                del self._attribute_listeners[attr_name]
 
-    def notify_attribute_listeners(self, attr_name, value):
+
+    def notify_attribute_listeners(self, attr_name, value, cache=False):
         """
-        This method calls attribute observers when the named attribute has changed.
+        This method is used to update attribute observers when the named attribute is updated.
         
-        It should be called in message listeners after updating an attribute with new information
-        from the vehicle. 
+        You should call it in your message listeners after updating an attribute with 
+        information from a vehicle message.
+
+        By default the value of ``cache`` is ``False`` and every update from the vehicle is sent to listeners 
+        (whether or not the attribute has changed).  This is appropriate for attributes which represent sensor 
+        or heartbeat-type monitoring. 
+        
+        Set ``cache=True`` to update listeners only when the value actually changes (cache the previous 
+        attribute value). This should be used where clients will only ever need to know the value when it has
+        changed. For example, this setting has been used for notifying :py:attr:`mode` changes.
+        
+        See :ref:`example_create_attribute` for more information.
         
         :param String attr_name: The name of the attribute that has been updated.
         :param value: The current value of the attribute that has been updated.
+        :param Boolean cache: Set ``True`` to only notify observers when the attribute value changes.
         """
-        for fn in self.__observers.get(attr_name, []):
+        # Cached values are not re-sent if they are unchanged.
+        if cache:
+            if attr_name in self._attribute_cache and self._attribute_cache[attr_name] == value:
+                return
+            self._attribute_cache[attr_name] = value
+
+        # Notify observers.
+        for fn in self._attribute_listeners.get(attr_name, []):
             fn(self, attr_name, value)
-        for fn in self.__observers.get('*', []):
+        for fn in self._attribute_listeners.get('*', []):
             fn(self, attr_name, value)
 
     def on_attribute(self, name):
         """
         Decorator for attribute listeners.
         
-        The decorated ``observer`` callback function is invoked every time the associated attribute is updated 
-        from the vehicle (the attribute value may not have *changed*). 
+        The decorated function (``observer``) is invoked differently depending on the *type of attribute*. 
+        Attributes that represent sensor values or which are used to monitor connection status are updated 
+        whenever a message is received from the vehicle. Attributes which reflect vehicle "state" are 
+        only updated when their values change (for example :py:func:`Vehicle.system_status <dronekit.lib.Vehicle.system_status>`,
+        :py:attr:`Vehicle.armed <dronekit.lib.Vehicle.armed>`, and :py:attr:`Vehicle.mode <dronekit.lib.Vehicle.mode>`).
         
         The callback arguments are:
         
@@ -439,6 +471,8 @@ class HasObservers(object):
             @vehicle.on_attribute('attitude')
             def attitude_listener(self, name, msg):
                 print '%s attribute is: %s' % (name, msg)
+                
+        See :ref:`vehicle_state_observe_attributes` for more information.
 
         :param String attr_name: The name of the attribute to watch (or '*' to watch all attributes).
         :param observer: The callback to invoke when a change in the attribute is detected.
@@ -900,11 +934,11 @@ class Vehicle(HasObservers):
         @self.on_message('HEARTBEAT')
         def listener(self, name, m):
             self._armed = (m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
-            self.notify_attribute_listeners('armed', self.armed)
+            self.notify_attribute_listeners('armed', self.armed, cache=True)
             self._flightmode = {v: k for k, v in self._master.mode_mapping().items()}[m.custom_mode]
-            self.notify_attribute_listeners('mode', self.mode)
+            self.notify_attribute_listeners('mode', self.mode, cache=True)
             self._system_status = m.system_status
-            self.notify_attribute_listeners('system_status', self.system_status)
+            self.notify_attribute_listeners('system_status', self.system_status, cache=True)
 
         # Waypoints.
 
@@ -1008,6 +1042,7 @@ class Vehicle(HasObservers):
                         self._params_duration = start_duration
                     self._params_set[msg.param_index] = msg
                 self._params_map[msg.param_id] = msg.param_value
+                self._parameters.notify_attribute_listeners(msg.param_id, msg.param_value, cache=True)
             except:
                 import traceback
                 traceback.print_exc()
@@ -1032,7 +1067,7 @@ class Vehicle(HasObservers):
             # Timeouts.
             if self._heartbeat_started:
                 if self._heartbeat_error and self._heartbeat_error > 0 and time.time() - self._heartbeat_lastreceived > self._heartbeat_error:
-                    raise Exception('>>> No heartbeat in %s seconds, aborting.' % self._heartbeat_error)
+                    raise APIException('No heartbeat in %s seconds, aborting.' % self._heartbeat_error)
                 elif time.time() - self._heartbeat_lastreceived > self._heartbeat_warning:
                     if self._heartbeat_timeout == False:
                         errprinter('>>> Link timeout, no heartbeat in last %s seconds' % self._heartbeat_warning)
@@ -1071,6 +1106,8 @@ class Vehicle(HasObservers):
             def my_method(self, name, msg):
                 pass
                 
+        See :ref:`mavlink_messages` for more information.
+                
         :param String name: The name of the message to be intercepted by the decorated listener function (or '*' to get all messages).
         """
         def decorator(fn):
@@ -1107,6 +1144,8 @@ class Vehicle(HasObservers):
                 pass
 
             vehicle.add_message_listener('HEARTBEAT',my_method)
+            
+        See :ref:`mavlink_messages` for more information.
         
         :param String name: The name of the message to be intercepted by the listener function (or '*' to get all messages).
         :param fn: The listener function that will be called if a message is received.        
@@ -1120,6 +1159,8 @@ class Vehicle(HasObservers):
     def remove_message_listener(self, name, fn):
         """
         Removes a message listener (that was previously added using :py:func:`add_message_listener`).
+        
+        See :ref:`mavlink_messages` for more information.
         
         :param String name: The name of the message for which the listener is to be removed (or '*' to remove an 'all messages' observer).
         :param fn: The listener callback function to remove.            
@@ -1185,6 +1226,8 @@ class Vehicle(HasObservers):
 
     @property
     def battery(self):
+        if self._voltage == None or self._current == None or self._level == None:
+            return None
         return Battery(self._voltage, self._current, self._level)
 
     @property
@@ -1443,7 +1486,7 @@ class Vehicle(HasObservers):
         """
         return self._master.mav
 
-    def initialize(self, wait_ready=False, rate=None, heartbeat_timeout=30):
+    def initialize(self, rate=4, heartbeat_timeout=30):
         self._handler.start()
 
         # Start heartbeat polling.
@@ -1505,7 +1548,7 @@ class Vehicle(HasObservers):
 
         return True
 
-class Parameters(HasObservers):
+class Parameters(collections.MutableMapping, HasObservers):
     """
     This object is used to get and set the values of named parameters for a vehicle. See the following links for information about
     the supported parameters for each platform: `Copter <http://copter.ardupilot.com/wiki/configuration/arducopter-parameters/>`_,
@@ -1533,17 +1576,30 @@ class Parameters(HasObservers):
     """
 
     def __init__(self, vehicle):
+        super(Parameters, self).__init__()
         self._vehicle = vehicle
 
     def __getitem__(self, name):
+        name = name.upper()
         self.wait_ready()
         return self._vehicle._params_map[name]
 
     def __setitem__(self, name, value):
+        name = name.upper()
         self.wait_ready()
         self.set(name, value)
 
+    def __delitem__(self, name):
+        raise APIException('Cannot delete value from parameters list.')
+
+    def __len__(self):
+        return len(self._vehicle._params_map)
+
+    def __iter__(self):
+        return self._vehicle._params_map.__iter__()
+
     def get(self, name, wait_ready=True):
+        name = name.upper()
         if wait_ready:
             self.wait_ready()
         return self._vehicle._params_map.get(name, None)
@@ -1562,7 +1618,7 @@ class Parameters(HasObservers):
         success = False
         remaining = retries
         while True:
-            self._vehicle._master.param_set_send(name.upper(), value)
+            self._vehicle._master.param_set_send(name, value)
             tstart = time.time()
             if remaining == 0:
                 break
@@ -1581,6 +1637,22 @@ class Parameters(HasObservers):
         Block the calling thread until parameters have been downloaded
         """
         self._vehicle.wait_ready('parameters', **kwargs)
+
+    def add_attribute_listener(self, attr_name, *args, **kwargs):
+        attr_name = attr_name.upper()
+        return super(Parameters, self).add_attribute_listener(attr_name, *args, **kwargs)
+
+    def remove_attribute_listener(self, attr_name, *args, **kwargs):
+        attr_name = attr_name.upper()
+        return super(Parameters, self).remove_attribute_listener(attr_name, *args, **kwargs)
+
+    def notify_attribute_listeners(self, attr_name, *args, **kwargs):
+        attr_name = attr_name.upper()
+        return super(Parameters, self).notify_attribute_listeners(attr_name, *args, **kwargs)
+
+    def on_attribute(self, attr_name, *args, **kwargs):
+        attr_name = attr_name.upper()
+        return super(Parameters, self).on_attribute(attr_name, *args, **kwargs)
 
 class Command(mavutil.mavlink.MAVLink_mission_item_message):
     """
