@@ -828,28 +828,18 @@ class Vehicle(HasObservers):
             self._rngfnd_voltage = m.voltage
             self.notify_attribute_listeners('rangefinder', self.rangefinder)
 
-        self.radio_status=RadioStatus()
-        """ Temporary
-		self._rssi = None
-		self._remrssi = None
-		self._txbuf = None
-		self._noise = None
-		self._remnoise = None
-		self._rxerrors = None
-		self._fixed = None
-		"""
-		
-        @self.message_listener('RADIO_STATUS')
+        self._radio_status=RadioStatus()
+        @self.on_message('RADIO_STATUS')
         def listener(self, name, m):
-            self.radio_status.rssi = m.rssi
-            self.radio_status.remrssi = m.remrssi
-            self.radio_status.txbuf = m.txbuf
-            self.radio_status.noise = m.noise
-            self.radio_status.remnoise = m.remnoise
-            self.radio_status.rxerrors = m.rxerrors
-            self.radio_status.fixed = m.fixed
+            self._radio_status.rssi = m.rssi
+            self._radio_status.remrssi = m.remrssi
+            self._radio_status.txbuf = m.txbuf
+            self._radio_status.noise = m.noise
+            self._radio_status.remnoise = m.remnoise
+            self._radio_status.rxerrors = m.rxerrors
+            self._radio_status.fixed = m.fixed
             # Notify all observers of new message.
-            self._notify_attribute_listeners('radio status')
+            self.notify_attribute_listeners('radiostatus', self.radiostatus)
 			
         self._mount_pitch = None
         self._mount_yaw = None
@@ -1233,6 +1223,10 @@ class Vehicle(HasObservers):
     @property
     def rangefinder(self):
         return Rangefinder(self._rngfnd_distance, self._rngfnd_voltage)
+
+    @property
+    def radiostatus(self):
+        return RadioStatus(self._radio_status.rssi, self._radio_status.remrssi, self._radio_status.txbuf, self._radio_status.noise, self._radio_status.remnoise, self._radio_status.rxerrors, self._radio_status.fixed)
 
     @property
     def velocity(self):
