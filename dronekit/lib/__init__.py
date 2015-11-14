@@ -1289,6 +1289,15 @@ class Vehicle(HasObservers):
             7: SystemStatus('POWEROFF'),
         }.get(self._system_status, None)
 
+    # Basic expose of heartbeat params
+    @property
+    def heartbeat_lastreceived(self)
+        return self._heartbeat_lastreceived
+    
+    @property
+    def heartbeat_timeout(self)
+        return self._heartbeat_timeout
+        
     @property
     def heading(self):
         """
