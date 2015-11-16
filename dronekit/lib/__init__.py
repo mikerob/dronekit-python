@@ -1291,11 +1291,11 @@ class Vehicle(HasObservers):
 
     # Basic expose of heartbeat params
     @property
-    def heartbeat_lastreceived(self)
+    def heartbeat_lastreceived(self):
         return self._heartbeat_lastreceived
     
     @property
-    def heartbeat_timeout(self)
+    def heartbeat_timeout(self):
         return self._heartbeat_timeout
         
     @property
