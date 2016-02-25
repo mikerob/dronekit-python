@@ -18,7 +18,7 @@ python language features and libraries (OpenCV, classes, lots of packages etc...
 Running the example
 ===================
 
-DroneKit (for Linux) and the vehicle should be set up as described in :ref:`get-started`.
+DroneKit (for Linux) and the vehicle should be set up as described in :ref:`installing_dronekit`.
 
 Once you've done that:
 
@@ -51,54 +51,58 @@ Once you've done that:
        cd dronekit-python/examples/follow_me/
 
 
-#. Start the example, passing the :ref:`connection string <get_started_connect_string>` you wish to use in the ``--connect`` parameter:
+#. You can run the example against a simulator (DroneKit-SITL) by specifying the Python script without any arguments.
+   The example will download SITL binaries (if needed), start the simulator, and then connect to it:
+
+   .. code-block:: bash
+
+       python follow_me.py
+
+   On the command prompt you should see (something like):
+   
+   .. code:: bash
+
+       Starting copter simulator (SITL)
+       SITL already Downloaded.
+       Connecting to vehicle on: tcp:127.0.0.1:5760
+       >>> APM:Copter V3.4-dev (e0810c2e)
+       >>> Frame: QUAD
+       Link timeout, no heartbeat in last 5 seconds
+       Basic pre-arm checks
+       Waiting for GPS...: None
+       ...
+       Waiting for GPS...: None
+       Taking off!
+        Altitude:  0.019999999553
+        ...
+        Altitude:  4.76000022888
+       Reached target altitude
+       Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
+       ...
+       Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
+       Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
+       User has changed flight modes - aborting follow-me
+       Close vehicle object
+       Completed
+       
+   .. note:: 
+
+       The terminal output above was created using simulated GPS data 
+       (which is why the same target location is returned every time).
+       
+       To stop follow-me you can change the vehicle mode or do Ctrl+C
+       (on a real flight you can just change the mode switch on your 
+       RC transmitter). 
+      
+
+#. You can run the example against a specific connection (simulated or otherwise) by passing the :ref:`connection string <get_started_connect_string>` for your vehicle in the ``--connect`` parameter. 
+
+   For example, to connect to SITL running on UDP port 14550 on your local computer:
 
    .. code-block:: bash
 
        python follow_me.py --connect 127.0.0.1:14550
-       
-
-   .. note::
    
-       The examples uses the ``--connect`` parameter to pass the :ref:`connection string <get_started_connect_string>` into the script. 
-       The command above is used to connect to :ref:`SITL <sitl_setup>` running on the local Linux machine via UDP port 14550.
-
-
-On the terminal you should see (something like):
-
-
-.. code-block:: bash
-    
-    Connecting to vehicle on: 127.0.0.1:14550
-    >>> APM:Copter V3.4-dev (e0810c2e)
-    >>> Frame: QUAD
-    Link timeout, no heartbeat in last 5 seconds
-    Basic pre-arm checks
-    Waiting for GPS...: None
-    ...
-    Waiting for GPS...: None
-    Taking off!
-     Altitude:  0.019999999553
-     ...
-     Altitude:  4.76000022888
-    Reached target altitude
-    Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
-    ...
-    Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
-    Going to: Location:lat=50.616468333,lon=7.131903333,alt=30,is_relative=True
-    User has changed flight modes - aborting follow-me
-    Close vehicle object
-    Completed
-
- 
-To stop follow-me you can change the vehicle mode (on a real flight you can just change the mode switch on your RC transmitter). 
-
-.. note:: 
-
-    The terminal output above was created using simulated GPS data 
-    (which is why the same target location is returned every time). It was exited by changing
-    the mode from GUIDED to STABILIZE using MAVProxy.
-    
 
     
 How does it work?
@@ -108,7 +112,7 @@ Most of the example should be fairly familiar as it uses the same code as other 
 :ref:`taking off <taking-off>`, and closing the vehicle object. 
 
 The example-specific code is shown below.  All this does is attempt to get a gps socket and read the location in a two second loop. If it is successful it 
-reports the value and uses :py:func:`Vehicle.commands.goto <dronekit.lib.CommandSequence.goto>` to move to the new position. The loop exits when 
+reports the value and uses :py:func:`Vehicle.simple_goto <dronekit.Vehicle.simple_goto>` to move to the new position. The loop exits when 
 the mode is changed. 
 
 .. code-block:: python
@@ -137,11 +141,11 @@ the mode is changed.
             # Once we have a valid location (see gpsd documentation) we can start moving our vehicle around
             if (gpsd.valid & gps.LATLON_SET) != 0:
                 altitude = 30  # in meters
-                dest = LocationGlobal(gpsd.fix.latitude, gpsd.fix.longitude, altitude, is_relative=True)
+                dest = LocationGlobalRelative(gpsd.fix.latitude, gpsd.fix.longitude, altitude)
                 print "Going to: %s" % dest
 
                 # A better implementation would only send new waypoints if the position had changed significantly
-                vehicle.commands.goto(dest)
+                vehicle.simple_goto(dest)
 
                 # Send a new target every two seconds
                 # For a complete implementation of follow me you'd want adjust this delay

@@ -6,43 +6,80 @@ and how to observe vehicle attribute (state) changes.
 
 Full documentation is provided at http://python.dronekit.io/examples/vehicle_state.html
 """
-from dronekit import connect
-from dronekit.lib import VehicleMode
-from pymavlink import mavutil
+from dronekit import connect, VehicleMode
 import time
 
 #Set up option parsing to get connection string
 import argparse  
 parser = argparse.ArgumentParser(description='Print out vehicle state information. Connects to SITL on local PC by default.')
-parser.add_argument('--connect', default='127.0.0.1:14550',
-                   help="vehicle connection target. Default '127.0.0.1:14550'")
+parser.add_argument('--connect', 
+                   help="vehicle connection target string. If not specified, SITL automatically started and used.")
 args = parser.parse_args()
+
+connection_string = args.connect
+sitl = None
+
+
+#Start SITL if no connection string specified
+if not args.connect:
+    print "Starting copter simulator (SITL)"
+    from dronekit_sitl import SITL
+    sitl = SITL()
+    sitl.download('copter', '3.3', verbose=True)
+    sitl_args = ['-I0', '--model', 'quad', '--home=-35.363261,149.165230,584,353']
+    sitl.launch(sitl_args, await_ready=True, restart=True)
+    connection_string = 'tcp:127.0.0.1:5760'
 
 
 # Connect to the Vehicle. 
 #   Set `wait_ready=True` to ensure default attributes are populated before `connect()` returns.
-print "\nConnecting to vehicle on: %s" % args.connect
-vehicle = connect(args.connect, wait_ready=True)
+print "\nConnecting to vehicle on: %s" % connection_string
+vehicle = connect(connection_string, wait_ready=True)
 
+vehicle.wait_ready('autopilot_version')
 
 # Get all vehicle attributes (state)
 print "\nGet all vehicle attribute values:"
+print " Autopilot Firmware version: %s" % vehicle.version
+print "   Major version number: %s" % vehicle.version.major
+print "   Minor version number: %s" % vehicle.version.minor
+print "   Patch version number: %s" % vehicle.version.patch
+print "   Release type: %s" % vehicle.version.release_type()
+print "   Release version: %s" % vehicle.version.release_version()
+print "   Stable release?: %s" % vehicle.version.is_stable()
+print " Autopilot capabilities"
+print "   Supports MISSION_FLOAT message type: %s" % vehicle.capabilities.mission_float
+print "   Supports PARAM_FLOAT message type: %s" % vehicle.capabilities.param_float
+print "   Supports MISSION_INT message type: %s" % vehicle.capabilities.mission_int
+print "   Supports COMMAND_INT message type: %s" % vehicle.capabilities.command_int
+print "   Supports PARAM_UNION message type: %s" % vehicle.capabilities.param_union
+print "   Supports ftp for file transfers: %s" % vehicle.capabilities.ftp
+print "   Supports commanding attitude offboard: %s" % vehicle.capabilities.set_attitude_target
+print "   Supports commanding position and velocity targets in local NED frame: %s" % vehicle.capabilities.set_attitude_target_local_ned
+print "   Supports set position + velocity targets in global scaled integers: %s" % vehicle.capabilities.set_altitude_target_global_int
+print "   Supports terrain protocol / data handling: %s" % vehicle.capabilities.terrain
+print "   Supports direct actuator control: %s" % vehicle.capabilities.set_actuator_target
+print "   Supports the flight termination command: %s" % vehicle.capabilities.flight_termination
+print "   Supports mission_float message type: %s" % vehicle.capabilities.mission_float
+print "   Supports onboard compass calibration: %s" % vehicle.capabilities.compass_calibration
 print " Global Location: %s" % vehicle.location.global_frame
+print " Global Location (relative altitude): %s" % vehicle.location.global_relative_frame
 print " Local Location: %s" % vehicle.location.local_frame
 print " Attitude: %s" % vehicle.attitude
 print " Velocity: %s" % vehicle.velocity
 print " GPS: %s" % vehicle.gps_0
-print " Groundspeed: %s" % vehicle.groundspeed
-print " Airspeed: %s" % vehicle.airspeed
-print " Mount status: %s" % vehicle.mount_status
+print " Gimbal status: %s" % vehicle.gimbal
 print " Battery: %s" % vehicle.battery
 print " EKF OK?: %s" % vehicle.ekf_ok
+print " Last Heartbeat: %s" % vehicle.last_heartbeat
 print " Rangefinder: %s" % vehicle.rangefinder
 print " Rangefinder distance: %s" % vehicle.rangefinder.distance
 print " Rangefinder voltage: %s" % vehicle.rangefinder.voltage
 print " Heading: %s" % vehicle.heading
 print " Is Armable?: %s" % vehicle.is_armable
 print " System status: %s" % vehicle.system_status.state
+print " Groundspeed: %s" % vehicle.groundspeed    # settable
+print " Airspeed: %s" % vehicle.airspeed    # settable
 print " Mode: %s" % vehicle.mode.name    # settable
 print " Armed: %s" % vehicle.armed    # settable
 
@@ -64,9 +101,9 @@ print "\n Home location: %s" % vehicle.home_location
 print "\nSet new home location"
 # Home location must be within 50km of EKF home location (or setting will fail silently)
 # In this case, just set value to current location with an easily recognisable altitude (222)
-my_location_alt=vehicle.location.global_frame
-my_location_alt.alt=222
-vehicle.home_location=my_location_alt
+my_location_alt = vehicle.location.global_frame
+my_location_alt.alt = 222.0
+vehicle.home_location = my_location_alt
 print " New Home Location (from attribute - altitude should be 222): %s" % vehicle.home_location
 
 #Confirm current value on vehicle by re-downloading commands
@@ -76,7 +113,7 @@ cmds.wait_ready()
 print " New Home Location (from vehicle - altitude should be 222): %s" % vehicle.home_location
 
 
-print "\nSet Vehicle.mode=GUIDED (currently: %s)" % vehicle.mode.name 
+print "\nSet Vehicle.mode = GUIDED (currently: %s)" % vehicle.mode.name 
 vehicle.mode = VehicleMode("GUIDED")
 while not vehicle.mode.name=='GUIDED':  #Wait until mode has changed
     print " Waiting for mode change ..."
@@ -101,7 +138,7 @@ print " Vehicle is armed: %s" % vehicle.armed
 # Add and remove and attribute callbacks
 
 #Define callback for `vehicle.attitude` observer
-last_attitude_cache=None
+last_attitude_cache = None
 def attitude_callback(self, attr_name, value):
     # `attr_name` - the observed attribute (used if callback is used for multiple attributes)
     # `self` - the associated vehicle object (used if a callback is different for multiple vehicles)
@@ -150,9 +187,6 @@ except:
  
 # Demonstrate getting callback on any attribute change
 def wildcard_callback(self, attr_name, value):
-    # `attr_name` - attribute name (useful if callback is used for multiple attributes)
-    # `self` - associated vehicle object (used if callback behaviour is different for multiple vehicles)
-    # `value` - updated attribute value.
     print " CALLBACK: (%s): %s" % (attr_name,value)
 
 print "\nAdd attribute callback detecting ANY attribute change"     
@@ -224,6 +258,10 @@ vehicle.parameters['THR_MID']=500
 #Close vehicle object before exiting script
 print "\nClose vehicle object"
 vehicle.close()
+
+# Shut down simulator if it was started.
+if sitl is not None:
+    sitl.stop()
 
 print("Completed")
 

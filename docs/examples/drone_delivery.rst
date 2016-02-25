@@ -6,11 +6,6 @@ This example shows how to create a `CherryPy <http://www.cherrypy.org>`_ based w
 displays a mapbox map to let you view the current vehicle position and send the vehicle commands 
 to fly to a particular latitude and longitude.
 
-.. warning::
-
-    At time of writing, this example does not work properly (the vehicle does not take off).
-    For more information see `#357 Mode not changed when message sent inside drone delivery example <https://github.com/dronekit/dronekit-python/issues/357>`_
-
 New functionality demonstrated by this example includes:
 
 * Using attribute observers to be notified of vehicle state changes.
@@ -21,13 +16,8 @@ Running the example
 ===================
 
 The example can be run much as described in :doc:`running_examples` (which in turn assumes that the vehicle
-and DroneKit have been set up as described in :ref:`get-started`). The main exception is that you need to 
+and DroneKit have been set up as described in :ref:`installing_dronekit`). The main exception is that you need to 
 install the CherryPy dependencies and view the behaviour in a web browser.
-    
-If you're using a simulated vehicle remember to :ref:`disable arming checks <disable-arming-checks>` so 
-that the example can run. You can also `add a virtual rangefinder <http://dev.ardupilot.com/wiki/simulation-2/sitl-simulator-software-in-the-loop/using-sitl-for-ardupilot-testing/#adding_a_virtual_rangefinder>`_
-(otherwise the :py:attr:`Vehicle.rangefinder <dronekit.lib.Vehicle.rangefinder>` attribute may return values of ``None`` for the distance
-and voltage). 
 
 In summary, after cloning the repository:
 
@@ -44,48 +34,65 @@ In summary, after cloning the repository:
 
        pip install -r requirements.pip
        
-       
-#. Start the example, passing the :ref:`connection string <get_started_connect_string>` you wish to use in the ``--connect`` parameter:
+#. You can run the example against the simulator by specifying the Python script without any arguments.
+   The example will download and start DroneKit-SITL, and then connect to it:
 
    .. code-block:: bash
 
-       python drone_delivery.py --connect 127.0.0.1:14550
+       python drone_delivery.py
 
-   .. note::
-   
-       The ``--connect`` parameter above connects to SITL on udp port 127.0.0.1:14550.
-       This is the default value for the parameter, and may be omitted. 
+   On the command prompt you should see (something like):
 
-#. After a short while you should be able to reach your new webserver at http://localhost:8080. 
+   .. code:: bash
+
+       >python drone_delivery.py
+       
+       D:\Github\dronekit-python\examples\drone_delivery>drone_delivery.py
+       Starting copter simulator (SITL)
+       SITL already Downloaded.
+       local path: D:\Github\dronekit-python\examples\drone_delivery
+       Connecting to vehicle on: tcp:127.0.0.1:5760
+       >>> APM:Copter V3.3 (d6053245)
+       >>> Frame: QUAD
+       >>> Calibrating barometer
+       >>> Initialising APM...
+       >>> barometer calibration complete
+       >>> GROUND START
+       Launching Drone...
+       [DEBUG]: Connected to vehicle.
+       [DEBUG]: DroneDelivery Start
+       [DEBUG]: Waiting for location...
+       [DEBUG]: Waiting for ability to arm...
+       [DEBUG]: Running initial boot sequence
+       [DEBUG]: Changing to mode: GUIDED
+       [DEBUG]:   ... polled mode: GUIDED
+       [DEBUG]: Waiting for arming...
+       >>> ARMING MOTORS
+       >>> GROUND START
+       >>> Initialising APM...
+       [DEBUG]: Taking off
+       http://localhost:8080/
+       Waiting for cherrypy engine...
+
+#. You can run the example against a specific connection (simulated or otherwise) by passing the :ref:`connection string <get_started_connect_string>` for your vehicle in the ``--connect`` parameter. 
+   For example, to connect to Solo:
+
+   .. code-block:: bash
+
+       python drone_delivery.py --connect udpin:0.0.0.0:14550
 
 
-On the command prompt you should see (something like):
-
-.. code-block:: bash
-
-    \dronekit-python\examples\drone_delivery>drone_delivery.py
-    local path: E:\deleteme\dronekit-python\examples\drone_delivery
-    Connecting to vehicle on: 127.0.0.1:14550
-    >>> ☺APM:Copter V3.4-dev (e0810c2e)
-    >>> ☺Frame: QUAD
-    connected ...
-    [DEBUG]: DroneDelivery Start
-    [DEBUG]: Waiting for GPS Lock
-    [DEBUG]: DroneDelivery Armed Callback
-    [DEBUG]: GPS: GPSInfo:fix=3,num_sat=10
-    [DEBUG]: Running initial boot sequence
-    [DEBUG]: Arming
-    [DEBUG]: Taking off
-    [DEBUG]: Mode: GUIDED
-    INFO:cherrypy.error:[21/Oct/2015:16:33:15] ENGINE Bus STARTING
-    INFO:cherrypy.error:[21/Oct/2015:16:33:15] ENGINE Started monitor thread 'Autoreloader'.
-    INFO:cherrypy.error:[21/Oct/2015:16:33:15] ENGINE Started monitor thread '_TimeoutMonitor'.
-    INFO:cherrypy.error:[21/Oct/2015:16:33:15] ENGINE Serving on http://0.0.0.0:8080
-    INFO:cherrypy.error:[21/Oct/2015:16:33:15] ENGINE Bus STARTED
-    >>> ☺ARMING MOTORS
-    >>> ☺Initialising APM...
-    ...
+#. After a short while you should be able to reach your new webserver at http://localhost:8080.  
+   Navigate to the **Command** screen, select a target on the map, then select **Go**. 
+   The command prompt will show something like the message below. 
     
+   .. code-block:: bash
+
+       [DEBUG]: Goto: [u'-35.4', u'149.2'], 29.98
+    
+   The web server will switch you to the **Track** screen. You can view the vehicle progress by pressing the 
+   **Update** button.
+
 
 Screenshots
 ===========
@@ -105,24 +112,28 @@ How it works
 Using attribute observers
 -------------------------
 
-All attributes in DroneKit can have observers - this is the primary mechanism you should use to be notified of changes in vehicle state.  For instance, `drone_delivery.py <https://github.com/dronekit/dronekit-python/blob/master/examples/drone_delivery/drone_delivery.py>`_ calls:
+All attributes in DroneKit can have observers - this is the primary mechanism you should use to be notified of changes in vehicle state.  
+For instance, `drone_delivery.py <https://github.com/dronekit/dronekit-python/blob/master/examples/drone_delivery/drone_delivery.py>`_ calls:
 
 .. code-block:: python
 
-    self.vehicle.add_attribute_observer('location', self.location_callback)
+    self.vehicle.add_attribute_listener('location', self.location_callback)
 
     ...
 
-    def location_callback(self, location):
-        location = self.vehicle.location.global_frame
+    def location_callback(self, vehicle, name, location):
+        if location.global_relative_frame.alt is not None:
+            self.altitude = location.global_relative_frame.alt
 
-        if location.alt is not None:
-            self.altitude = location.alt
-
-        self.current_location = location
+        self.current_location = location.global_relative_frame
 
 
 This results in DroneKit calling our ``location_callback`` method any time the location attribute gets changed.
+
+.. tip:: 
+
+    It is also possible (and often more elegant) to add listeners using a decorator 
+    - see :py:func:`Vehicle.on_attribute <dronekit.Vehicle.on_attribute>`.
 
 
 
@@ -134,6 +145,14 @@ We start running a web server by calling ``cherrypy.engine.start()``.
 *CherryPy* is a very small and simple webserver.  It is probably best to refer to their eight line `tutorial <http://www.cherrypy.org/>`_ for more information.
 
 
+
+Known issues
+============
+
+This example has the following issues:
+
+* `#537: Dronekit delivery tracking needs to zoom and also ideally auto update <https://github.com/dronekit/dronekit-python/issues/537>`_ 
+* `#538: Dronekit delivery example does not exit <https://github.com/dronekit/dronekit-python/issues/538>`_
 
 Source code
 ===========

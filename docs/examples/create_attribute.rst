@@ -4,23 +4,23 @@
 Example: Create Attribute in App
 ================================
 
-This example shows how you can subclass :py:class:`Vehicle <dronekit.lib.Vehicle>` in order to support 
+This example shows how you can subclass :py:class:`Vehicle <dronekit.Vehicle>` in order to support 
 new attributes for MAVLink messages within your DroneKit-Python script. The new class is defined in a 
 separate file (making re-use easy) and is very similar to the code used to implement the in-built attributes. 
 The new attributes are used *in the same way* as the built-in 
-:py:class:`Vehicle <dronekit.lib.Vehicle>` attributes.
+:py:class:`Vehicle <dronekit.Vehicle>` attributes.
 
-The new class uses the :py:func:`Vehicle.on_message() <dronekit.lib.Vehicle.on_message>` decorator
+The new class uses the :py:func:`Vehicle.on_message() <dronekit.Vehicle.on_message>` decorator
 to set a function that is called to process a specific message, copy its values into an attribute, and notify
 observers. An observer is then set on the new attribute using 
-:py:func:`Vehicle.add_attribute_listener() <dronekit.lib.Vehicle.add_attribute_listener>`.
+:py:func:`Vehicle.add_attribute_listener() <dronekit.Vehicle.add_attribute_listener>`.
 
 Additional information is provided in the guide topic :ref:`mavlink_messages`.
 
 .. tip::
     
     This approach is useful when you urgently need to access messages that are not yet supported as 
-    :py:class:`Vehicle <dronekit.lib.Vehicle>` attributes.
+    :py:class:`Vehicle <dronekit.Vehicle>` attributes.
 
     Please :ref:`contribute your code to the API <contributing_api>` so that it is available to 
     (and can be tested by) the whole DroneKit-Python community. 
@@ -31,7 +31,7 @@ Running the example
 ===================
 
 The example can be run as described in :doc:`running_examples` (which in turn assumes that the vehicle
-and DroneKit have been set up as described in :ref:`get-started`).
+and DroneKit have been set up as described in :ref:`installing_dronekit`).
 
 In summary, after cloning the repository:
 
@@ -41,48 +41,59 @@ In summary, after cloning the repository:
 
        cd dronekit-python\examples\create_attribute\
 
+#. You can run the example against a simulator (DroneKit-SITL) by specifying the Python script without any arguments.
+   The example will download SITL binaries (if needed), start the simulator, and then connect to it:
 
-#. Start the example, passing the :ref:`connection string <get_started_connect_string>` you wish to use in the ``--connect`` parameter:
+   .. code-block:: bash
+
+       python create_attribute.py
+
+   On the command prompt you should see (something like):
+   
+   .. code:: bash
+
+       Starting copter simulator (SITL)
+       SITL already Downloaded.
+       Connecting to vehicle on: tcp:127.0.0.1:5760
+       >>> APM:Copter V3.3 (d6053245)
+       >>> Frame: QUAD
+       >>> Calibrating barometer
+       >>> Initialising APM...
+       >>> barometer calibration complete
+       >>> GROUND START
+       Display RAW_IMU messages for 5 seconds and then exit.
+       RAW_IMU: time_boot_us=15340000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=15580000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=15820000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=1,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=16060000,xacc=0,yacc=1,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=16300000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=16540000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=16780000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=17020000,xacc=1,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=17260000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=17500000,xacc=0,yacc=0,zacc=-1000,xgyro=1,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=17740000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=17980000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=18220000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=1,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=18460000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=18700000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=18940000,xacc=1,yacc=0,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=19180000,xacc=1,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=19420000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=161,ymag=19,zmag=-365
+       RAW_IMU: time_boot_us=19660000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=0,xmag=154,ymag=52,zmag=-365
+       RAW_IMU: time_boot_us=19900000,xacc=0,yacc=0,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=154,ymag=52,zmag=-365
+       RAW_IMU: time_boot_us=20140000,xacc=0,yacc=0,zacc=-1000,xgyro=0,ygyro=0,zgyro=0,xmag=154,ymag=52,zmag=-365
+       Close vehicle object
+       
+       
+#. You can run the example against a specific connection (simulated or otherwise) by passing the :ref:`connection string <get_started_connect_string>` for your vehicle in the ``--connect`` parameter. 
+
+   For example, to connect to SITL running on UDP port 14550 on your local computer:
 
    .. code-block:: bash
 
        python create_attribute.py --connect 127.0.0.1:14550
 
-   .. note::
-   
-       The ``--connect`` parameter above connects to SITL on udp port 127.0.0.1:14550.
-       This is the default value for the parameter, and may be omitted. 
-          
-
-
-On the command prompt you should see (something like):
-
-.. code:: bash
-
-    Connecting to vehicle on: tcp:127.0.0.1:14550
-    >>> APM:Copter V3.3 (d6053245)
-    >>> Frame: QUAD
-    Display RAW_IMU messages for 5 seconds and then exit.
-    RAW_IMU: time_boot_us=1593318928,xacc=-3,yacc=5,zacc=-999,xgyro=0,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1593558928,xacc=-4,yacc=5,zacc=-1000,xgyro=0,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1593798928,xacc=-2,yacc=6,zacc=-1000,xgyro=1,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1594038928,xacc=-2,yacc=6,zacc=-1000,xgyro=1,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1594278928,xacc=-2,yacc=5,zacc=-999,xgyro=0,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1594518928,xacc=-2,yacc=4,zacc=-998,xgyro=1,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1594758928,xacc=-3,yacc=5,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1594998928,xacc=-2,yacc=4,zacc=-999,xgyro=1,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1595238928,xacc=-3,yacc=5,zacc=-1000,xgyro=0,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1595478928,xacc=-2,yacc=4,zacc=-1000,xgyro=1,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1595718928,xacc=-2,yacc=4,zacc=-999,xgyro=0,ygyro=1,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1595958928,xacc=-3,yacc=6,zacc=-1000,xgyro=0,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1596198928,xacc=-4,yacc=6,zacc=-1000,xgyro=1,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1596438928,xacc=-2,yacc=6,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1596678928,xacc=-3,yacc=4,zacc=-999,xgyro=1,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1596918928,xacc=-2,yacc=4,zacc=-999,xgyro=0,ygyro=1,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1597158928,xacc=-2,yacc=6,zacc=-1000,xgyro=0,ygyro=1,zgyro=1,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1597398928,xacc=-2,yacc=5,zacc=-1000,xgyro=0,ygyro=1,zgyro=0,xmag=156,ymag=41,zmag=-365
-    RAW_IMU: time_boot_us=1597638928,xacc=-3,yacc=5,zacc=-1000,xgyro=1,ygyro=0,zgyro=0,xmag=156,ymag=41,zmag=-365
-    Close vehicle object
 
 
 
@@ -150,7 +161,7 @@ The example file **my_vehicle.py** defines a class for the new attribute (``RawI
 ``MyVehicle`` is a superclass of ``Vehicle`` (and hence inherits all its attributes). 
 This first creates a private instance of ``RawIMU``.
 
-We create a listener using the :py:func:`Vehicle.on_message() <dronekit.lib.Vehicle.on_message>` 
+We create a listener using the :py:func:`Vehicle.on_message() <dronekit.Vehicle.on_message>` 
 decorator. The listener is called for messages that contain the string "RAW_IMU", 
 with arguments for the vehicle, message name, and the message. It copies the message information into 
 the attribute and then notifies all observers.
@@ -198,12 +209,12 @@ the attribute and then notifies all observers.
 
 .. note::
 
-    The notifier function (:py:func:`Vehicle.notify_attribute_listeners() <dronekit.lib.Vehicle.notify_attribute_listeners>`)
+    The notifier function (:py:func:`Vehicle.notify_attribute_listeners() <dronekit.Vehicle.notify_attribute_listeners>`)
     should be called every time there is an update from the vehicle. 
     
     You can set a third parameter (``cache=True``) so that it only invokes the listeners when the value *changes*. 
-    This is normally used for vehicle state information like ``Vehicle.mode``, where the value is updated 
-    regularly from the vehicle client code is only interested in attribute changes.
+    This is normally used for attributes like the vehicle mode, where the information is updated 
+    regularly from the vehicle, but client code is only interested when the attribute changes.
     
     You should not set ``cache=True`` for attributes that represent sensor information or other "live" information, including
     the RAW_IMU attribute demonstrated here. Clients can then implement their own caching strategy if needed.

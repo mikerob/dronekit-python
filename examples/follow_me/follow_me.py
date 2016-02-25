@@ -2,7 +2,7 @@
 followme - Tracks GPS position of your computer (Linux only).
 
 This example uses the python gps package to read positions from a GPS attached to your 
-laptop and sends a new vehicle.commands.goto command every two seconds to move the
+laptop and sends a new vehicle.simple_goto command every two seconds to move the
 vehicle to the current point.
 
 When you want to stop follow-me, either change vehicle modes or type Ctrl+C to exit the script.
@@ -10,59 +10,71 @@ When you want to stop follow-me, either change vehicle modes or type Ctrl+C to e
 Example documentation: http://python.dronekit.io/examples/follow_me.html
 """
 
-from dronekit import connect
+from dronekit import connect, VehicleMode, LocationGlobalRelative
 import gps
 import socket
 import time
 import sys
-from dronekit.lib import VehicleMode, LocationGlobal
 
 #Set up option parsing to get connection string
 import argparse  
-parser = argparse.ArgumentParser(description='Tracks GPS position of your computer (Linux only). Connects to SITL on local PC by default.')
-parser.add_argument('--connect', default='127.0.0.1:14550',
-                   help="vehicle connection target. Default '127.0.0.1:14550'")
+parser = argparse.ArgumentParser(description='Tracks GPS position of your computer (Linux only).')
+parser.add_argument('--connect', 
+                   help="vehicle connection target string. If not specified, SITL automatically started and used.")
 args = parser.parse_args()
+
+connection_string = args.connect
+sitl = None
+
+
+#Start SITL if no connection string specified
+if not args.connect:
+    print "Starting copter simulator (SITL)"
+    from dronekit_sitl import SITL
+    sitl = SITL()
+    sitl.download('copter', '3.3', verbose=True)
+    sitl_args = ['-I0', '--model', 'quad', '--home=-35.363261,149.165230,584,353']
+    sitl.launch(sitl_args, await_ready=True, restart=True)
+    connection_string = 'tcp:127.0.0.1:5760'
 
 
 # Connect to the Vehicle
-print 'Connecting to vehicle on: %s' % args.connect
-vehicle = connect(args.connect, wait_ready=True)
+print 'Connecting to vehicle on: %s' % connection_string
+vehicle = connect(connection_string, wait_ready=True)
 
 
 
 def arm_and_takeoff(aTargetAltitude):
     """
-    Arm vehicle and fly to aTargetAltitude.
+    Arms vehicle and fly to aTargetAltitude.
     """
+
     print "Basic pre-arm checks"
-    # Don't let the user try to fly while autopilot is booting
-    if vehicle.mode.name == "INITIALISING":
-        print "Waiting for vehicle to initialise"
-        time.sleep(1)
-    while vehicle.gps_0.fix_type < 2:
-        print "Waiting for GPS...:", vehicle.gps_0.fix_type
+    # Don't let the user try to arm until autopilot is ready
+    while not vehicle.is_armable:
+        print " Waiting for vehicle to initialise..."
         time.sleep(1)
 
+        
     print "Arming motors"
     # Copter should arm in GUIDED mode
-    vehicle.mode    = VehicleMode("GUIDED")
-    vehicle.armed   = True
+    vehicle.mode = VehicleMode("GUIDED")
+    vehicle.armed = True    
 
-    while not vehicle.armed:
+    while not vehicle.armed:      
         print " Waiting for arming..."
         time.sleep(1)
 
     print "Taking off!"
-    vehicle.commands.takeoff(aTargetAltitude) # Take off to target altitude
+    vehicle.simple_takeoff(aTargetAltitude) # Take off to target altitude
 
     # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command 
-    #  after Vehicle.commands.takeoff will execute immediately).
+    #  after Vehicle.simple_takeoff will execute immediately).
     while True:
-        print " Altitude: ", vehicle.location.global_frame.alt
-        if vehicle.location.global_frame.alt>=aTargetAltitude*0.95: #Just below target, in case of undershoot.
+        print " Altitude: ", vehicle.location.global_relative_frame.alt      
+        if vehicle.location.global_relative_frame.alt>=aTargetAltitude*0.95: #Trigger just below target alt.
             print "Reached target altitude"
-            break;
+            break
         time.sleep(1)
 
 
@@ -86,11 +98,11 @@ try:
         # Once we have a valid location (see gpsd documentation) we can start moving our vehicle around
         if (gpsd.valid & gps.LATLON_SET) != 0:
             altitude = 30  # in meters
-            dest = LocationGlobal(gpsd.fix.latitude, gpsd.fix.longitude, altitude, is_relative=True)
+            dest = LocationGlobalRelative(gpsd.fix.latitude, gpsd.fix.longitude, altitude)
             print "Going to: %s" % dest
 
             # A better implementation would only send new waypoints if the position had changed significantly
-            vehicle.commands.goto(dest)
+            vehicle.simple_goto(dest)
 
             # Send a new target every two seconds
             # For a complete implementation of follow me you'd want adjust this delay
@@ -103,5 +115,9 @@ except socket.error:
 #Close vehicle object before exiting script
 print "Close vehicle object"
 vehicle.close()
+
+# Shut down simulator if it was started.
+if sitl is not None:
+    sitl.stop()
 
 print("Completed")

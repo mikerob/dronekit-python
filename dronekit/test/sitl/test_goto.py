@@ -2,15 +2,16 @@
 simple_goto.py: GUIDED mode "simple goto" example (Copter Only)
 
 The example demonstrates how to arm and takeoff in Copter and how to navigate to 
-points using Vehicle.commands.goto.
+points using Vehicle.simple_goto.
 
 Full documentation is provided at http://python.dronekit.io/examples/simple_goto.html
 """
 
 import time
-from dronekit import connect, VehicleMode, LocationGlobal
+from dronekit import connect, VehicleMode, LocationGlobalRelative
 from dronekit.test import with_sitl
 from nose.tools import assert_equals
+
 
 @with_sitl
 def test_goto(connpath):
@@ -53,15 +54,15 @@ def test_goto(connpath):
         assert_equals(vehicle.armed, True)
 
         # Take off to target altitude
-        vehicle.commands.takeoff(aTargetAltitude) 
+        vehicle.simple_takeoff(aTargetAltitude)
 
         # Wait until the vehicle reaches a safe height before
         # processing the goto (otherwise the command after
-        # Vehicle.commands.takeoff will execute immediately).
+        # Vehicle.simple_takeoff will execute immediately).
         while True:
             # print " Altitude: ", vehicle.location.alt
             # Test for altitude just below target, in case of undershoot.
-            if vehicle.location.global_frame.alt >= aTargetAltitude * 0.95: 
+            if vehicle.location.global_frame.alt >= aTargetAltitude * 0.95:
                 # print "Reached target altitude"
                 break
 
@@ -71,15 +72,15 @@ def test_goto(connpath):
     arm_and_takeoff(10)
 
     # print "Going to first point..."
-    point1 = LocationGlobal(-35.361354, 149.165218, 20, is_relative=True)
-    vehicle.commands.goto(point1)
+    point1 = LocationGlobalRelative(-35.361354, 149.165218, 20)
+    vehicle.simple_goto(point1)
 
     # sleep so we can see the change in map
     time.sleep(3)
 
     # print "Going to second point..."
-    point2 = LocationGlobal(-35.363244, 149.168801, 20, is_relative=True)
-    vehicle.commands.goto(point2)
+    point2 = LocationGlobalRelative(-35.363244, 149.168801, 20)
+    vehicle.simple_goto(point2)
 
     # sleep so we can see the change in map
     time.sleep(3)

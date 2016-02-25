@@ -4,30 +4,43 @@ mission_basic.py: Example demonstrating basic mission operations including creat
 Full documentation is provided at http://python.dronekit.io/examples/mission_basic.html
 """
 
-from dronekit import connect
+from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGlobal, Command
 import time
 import math
-from dronekit.lib import VehicleMode, LocationGlobal, Command
 from pymavlink import mavutil
 
 
 #Set up option parsing to get connection string
 import argparse  
-parser = argparse.ArgumentParser(description='Example which runs basic mission operations. Connects to SITL on local PC by default.')
-parser.add_argument('--connect', default='127.0.0.1:14550',
-                   help="vehicle connection target. Default '127.0.0.1:14550'")
+parser = argparse.ArgumentParser(description='Demonstrates basic mission operations.')
+parser.add_argument('--connect', 
+                   help="vehicle connection target string. If not specified, SITL automatically started and used.")
 args = parser.parse_args()
+
+connection_string = args.connect
+sitl = None
+
+
+#Start SITL if no connection string specified
+if not args.connect:
+    print "Starting copter simulator (SITL)"
+    from dronekit_sitl import SITL
+    sitl = SITL()
+    sitl.download('copter', '3.3', verbose=True)
+    sitl_args = ['-I0', '--model', 'quad', '--home=-35.363261,149.165230,584,353']
+    sitl.launch(sitl_args, await_ready=True, restart=True)
+    connection_string='tcp:127.0.0.1:5760'
 
 
 # Connect to the Vehicle
-print 'Connecting to vehicle on: %s' % args.connect
-vehicle = connect(args.connect, wait_ready=True)
+print 'Connecting to vehicle on: %s' % connection_string
+vehicle = connect(connection_string, wait_ready=True)
 
 
 def get_location_metres(original_location, dNorth, dEast):
     """
     Returns a LocationGlobal object containing the latitude/longitude `dNorth` and `dEast` metres from the 
-    specified `original_location`. The returned Location has the same `alt and `is_relative` values 
+    specified `original_location`. The returned Location has the same `alt` value
     as `original_location`.
 
     The function is useful when you want to move the vehicle around specifying locations relative to 
@@ -44,7 +57,7 @@ def get_location_metres(original_location, dNorth, dEast):
     #New position in decimal degrees
     newlat = original_location.lat + (dLat * 180/math.pi)
     newlon = original_location.lon + (dLon * 180/math.pi)
-    return LocationGlobal(newlat, newlon,original_location.alt,original_location.is_relative)
+    return LocationGlobal(newlat, newlon,original_location.alt)
 
 
 def get_distance_metres(aLocation1, aLocation2):
@@ -66,14 +79,14 @@ def distance_to_current_waypoint():
     Gets distance in metres to the current waypoint. 
     It returns None for the first waypoint (Home location).
     """
-    nextwaypoint=vehicle.commands.next
-    if nextwaypoint ==0:
+    nextwaypoint = vehicle.commands.next
+    if nextwaypoint==0:
         return None
     missionitem=vehicle.commands[nextwaypoint-1] #commands are zero indexed
-    lat=missionitem.x
-    lon=missionitem.y
-    alt=missionitem.z
-    targetWaypointLocation=LocationGlobal(lat,lon,alt,is_relative=True)
+    lat = missionitem.x
+    lon = missionitem.y
+    alt = missionitem.z
+    targetWaypointLocation = LocationGlobalRelative(lat,lon,alt)
     distancetopoint = get_distance_metres(vehicle.location.global_frame, targetWaypointLocation)
     return distancetopoint
 
@@ -128,44 +141,37 @@ def arm_and_takeoff(aTargetAltitude):
     """
     Arms vehicle and fly to aTargetAltitude.
     """
+
     print "Basic pre-arm checks"
-    # Don't let the user try to fly autopilot is booting
-    if vehicle.mode.name == "INITIALISING":
-        print "Waiting for vehicle to initialise"
+    # Don't let the user try to arm until autopilot is ready
+    while not vehicle.is_armable:
+        print " Waiting for vehicle to initialise..."
         time.sleep(1)
-    else:
-        print "MODE: %s" % vehicle.mode.name
+
         
-    while vehicle.gps_0.fix_type < 2:
-        print "Waiting for GPS...:", vehicle.gps_0.fix_type
-        time.sleep(1)
-
-    # Wait for EKF to settle.
-    time.sleep(5)
-
     print "Arming motors"
     # Copter should arm in GUIDED mode
-    vehicle.mode    = VehicleMode("GUIDED")
-    vehicle.armed   = True
+    vehicle.mode = VehicleMode("GUIDED")
+    vehicle.armed = True
 
-    while not vehicle.armed:
+    while not vehicle.armed:      
         print " Waiting for arming..."
         time.sleep(1)
 
     print "Taking off!"
-    vehicle.commands.takeoff(aTargetAltitude) # Take off to target altitude
+    vehicle.simple_takeoff(aTargetAltitude) # Take off to target altitude
 
     # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command 
-    #  after Vehicle.commands.takeoff will execute immediately).
+    #  after Vehicle.simple_takeoff will execute immediately).
     while True:
-        print " Altitude: ", vehicle.location.global_frame.alt
-        if vehicle.location.global_frame.alt>=aTargetAltitude*0.95: #Just below target, in case of undershoot.
+        print " Altitude: ", vehicle.location.global_relative_frame.alt      
+        if vehicle.location.global_relative_frame.alt>=aTargetAltitude*0.95: #Trigger just below target alt.
             print "Reached target altitude"
-            break;
+            break
         time.sleep(1)
 
-
-print 'Create a new mission'
+        
+print 'Create a new mission (for current location)'
 adds_square_mission(vehicle.location.global_frame,50)
 
 
@@ -173,6 +179,9 @@ adds_square_mission(vehicle.location.global_frame,50)
 arm_and_takeoff(10)
 
 print "Starting mission"
+# Reset mission set to first (0) waypoint
+vehicle.commands.next=0
+
 # Set mode to AUTO to start mission
 vehicle.mode = VehicleMode("AUTO")
 
@@ -181,13 +190,14 @@ vehicle.mode = VehicleMode("AUTO")
 # Demonstrates getting and setting the command number 
 # Uses distance_to_current_waypoint(), a convenience function for finding the 
 #   distance to the next waypoint.
+
 while True:
     nextwaypoint=vehicle.commands.next
     print 'Distance to waypoint (%s): %s' % (nextwaypoint, distance_to_current_waypoint())
   
     if nextwaypoint==3: #Skip to next waypoint
         print 'Skipping to Waypoint 5 when reach waypoint 3'
-        vehicle.commands.next=5
+        vehicle.commands.next = 5
     if nextwaypoint==5: #Dummy waypoint - as soon as we reach waypoint 4 this is true and we exit.
         print "Exit 'standard' mission when start heading to final waypoint (5)"
         break;
@@ -201,4 +211,6 @@ vehicle.mode = VehicleMode("RTL")
 print "Close vehicle object"
 vehicle.close()
 
-
+# Shut down simulator if it was started.
+if sitl is not None:
+    sitl.stop()

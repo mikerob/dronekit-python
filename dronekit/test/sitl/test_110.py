@@ -2,8 +2,9 @@ import time
 import sys
 import os
 from dronekit import connect, VehicleMode
-from dronekit.test import with_sitl
+from dronekit.test import with_sitl, wait_for
 from nose.tools import assert_equals
+
 
 @with_sitl
 def test_110(connpath):
@@ -16,9 +17,8 @@ def test_110(connpath):
     vehicle.parameters['FS_EKF_THRESH'] = 100
 
     # Await armability.
-    while not vehicle.is_armable:
-        time.sleep(.1)
-    
+    wait_for(lambda : vehicle.is_armable, 60)
+
     # Change the vehicle into STABILIZE mode
     vehicle.mode = VehicleMode("GUIDED")
 
@@ -28,6 +28,7 @@ def test_110(connpath):
     # Define example callback for mode
     def armed_callback(vehicle, attribute, value):
         armed_callback.called += 1
+
     armed_callback.called = 0
 
     # When the same (event, callback) pair is passed to add_attribute_listener,
@@ -40,11 +41,12 @@ def test_110(connpath):
 
     # arm and see update.
     vehicle.armed = True
+
     # Wait for ACK.
-    time.sleep(3)
+    wait_for(lambda : armed_callback.called, 10)
 
     # Ensure the callback was called.
-    assert armed_callback.called > 0, "Callback should have been called."
+    assert armed_callback.called > 0, "Callback should have been called within %d seconds" % (time_max,)
 
     # Rmove all listeners. The first call should remove all listeners
     # we've added; the second call should be ignored and not throw.
@@ -57,10 +59,12 @@ def test_110(connpath):
 
     # Disarm and see update.
     vehicle.armed = False
+
     # Wait for ack
     time.sleep(3)
 
     # Ensure the callback was called zero times.
-    assert_equals(armed_callback.called, callcount, "Callback should not have been called once removed.")
+    assert_equals(armed_callback.called, callcount,
+                  "Callback should not have been called once removed.")
 
     vehicle.close()

@@ -1,22 +1,22 @@
 from setuptools import setup, Extension
 import platform
 
-version = '2.0.0rc10'
+version = '2.2.0'
 
 setup(name='dronekit',
       zip_safe=True,
       version=version,
-      description='Python language bindings for the DroneApi',
-      long_description='Python language bindings for the DroneApi',
+      description='Developer Tools for Drones.',
+      long_description='Python API for communication and control of drones over MAVLink.',
       url='https://github.com/dronekit/dronekit-python',
       author='3D Robotics',
       install_requires=[
-          'pymavlink >= 1.1.62',
-          'requests == 2.5.1',
+          'pymavlink>=1.1.62',
+          'requests>=2.5.0,<=2.99999',
       ],
       author_email='tim@3drobotics.com, kevinh@geeksville.com',
       classifiers=[
-          'Development Status :: 4 - Beta',
+          'Development Status :: 5 - Production/Stable',
           'Environment :: Console',
           'Intended Audience :: Science/Research',
           'License :: OSI Approved :: Apache Software License',
@@ -26,6 +26,6 @@ setup(name='dronekit',
       ],
       license='apache',
       packages=[
-          'dronekit', 'dronekit.lib', 'dronekit.test',
+          'dronekit', 'dronekit.cloud', 'dronekit.test'
       ],
       ext_modules=[])
